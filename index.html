@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>당근 위치기반 확장 연구</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: 1600x900 slide stage scaled to the window, like a projector frame; a quiet map-grid ground with orange location pins as the only accent. */
+:root{
+  --plane:#e7e7e3; --surface:#fcfcfb; --ink:#141412; --ink2:#52504b; --muted:#85827a; --line:#e1e0d9; --line2:#c9c6bc;
+  --accent:#e2600e; --accent-soft:#fbe4d3; --chip:#f1f0ec;
+  --sA:#2a78d6; --sB:#eb6834; --sC:#1baf7a; --sBg:#a8a7a0; --sGate:#6250d6; --sFull:#eda100; --sExit:#8a877f;
+  --good:#0f7a0f; --bad:#c63434; --tipbg:#141412; --tipfg:#f5f4f0;
+  --f-display:"Gothic A1","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --plane:#0d0d0c; --surface:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#8f8c84; --line:#2c2c2a; --line2:#3d3d39;
+  --accent:#ff8a3d; --accent-soft:#3b2415; --chip:#242422;
+  --sA:#3987e5; --sB:#d95926; --sC:#199e70; --sBg:#6f6e69; --sGate:#9085e9; --sFull:#c98500; --sExit:#8f8c84;
+  --good:#3fbf3f; --bad:#ef6b6b; --tipbg:#f0efec; --tipfg:#141412; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --plane:#0d0d0c; --surface:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#8f8c84; --line:#2c2c2a; --line2:#3d3d39;
+  --accent:#ff8a3d; --accent-soft:#3b2415; --chip:#242422;
+  --sA:#3987e5; --sB:#d95926; --sC:#199e70; --sBg:#6f6e69; --sGate:#9085e9; --sFull:#c98500; --sExit:#8f8c84;
+  --good:#3fbf3f; --bad:#ef6b6b; --tipbg:#f0efec; --tipfg:#141412; color-scheme:dark;}
+html,body{height:100%}
+body{background:var(--plane);color:var(--ink);font-family:var(--f-body);overflow:hidden;padding-inline:0}
+#viewport{position:fixed;inset:0 0 calc(56px + env(safe-area-inset-bottom,0px)) 0;display:grid;place-items:center;overflow:hidden}
+#stage{width:1600px;height:900px;position:relative;transform-origin:center center;flex:none;background:var(--surface);
+  box-shadow:0 1px 0 var(--line2),0 18px 50px rgba(0,0,0,.12);border-radius:6px;overflow:hidden}
+.slide{position:absolute;inset:0;padding:64px 88px 56px;display:none;flex-direction:column;gap:22px}
+.slide.on{display:flex}
+.slide::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.55;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:80px 80px;mask-image:linear-gradient(180deg,transparent 0%,#000 140%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 140%)}
+.slide>*{position:relative}
+.eyebrow{font:600 17px/1 var(--f-mono);letter-spacing:.08em;color:var(--accent);text-transform:uppercase;display:flex;align-items:center;gap:10px}
+.eyebrow .pin{width:12px;height:12px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--accent);display:inline-block}
+h1,h2{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:42px;font-weight:800;letter-spacing:-.02em;line-height:1.18;max-width:1300px}
+h2 em{font-style:normal;color:var(--accent)}
+.lead{font-size:22px;line-height:1.55;color:var(--ink2);margin:0;max-width:1180px}
+.small{font-size:15px;color:var(--muted);line-height:1.45}
+.src{position:absolute;left:88px;right:88px;bottom:22px;font-size:13.5px;color:var(--muted);line-height:1.4}
+.row{display:flex;gap:28px;min-width:0}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line2);border-radius:10px;padding:18px 20px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:8px;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:16px;color:var(--ink2)}
+.chip b{color:var(--ink);font-family:var(--f-mono);font-weight:600}
+svg text{font-family:var(--f-body)}
+.axis text{fill:var(--muted);font-size:14px;font-family:var(--f-mono)}
+.axis line,.axis path{stroke:var(--line2)}
+.grid line{stroke:var(--line);stroke-width:1}
+/* motion */
+@media (prefers-reduced-motion:no-preference){
+  .slide.on [data-a]{animation:up .6s cubic-bezier(.2,.7,.2,1) backwards}
+  .slide.on [data-a="1"]{animation-delay:.06s}.slide.on [data-a="2"]{animation-delay:.16s}.slide.on [data-a="3"]{animation-delay:.28s}
+  .slide.on [data-a="4"]{animation-delay:.4s}.slide.on [data-a="5"]{animation-delay:.52s}.slide.on [data-a="6"]{animation-delay:.64s}
+  @keyframes up{from{opacity:0;transform:translateY(14px)}}
+  .grow{transition:height .7s cubic-bezier(.2,.7,.2,1),y .7s cubic-bezier(.2,.7,.2,1),width .7s cubic-bezier(.2,.7,.2,1),x .7s cubic-bezier(.2,.7,.2,1)}
+}
+/* tooltip */
+#tip{position:absolute;z-index:50;pointer-events:none;background:var(--tipbg);color:var(--tipfg);border-radius:8px;padding:10px 12px;font-size:15px;line-height:1.45;min-width:120px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .12s}
+#tip.show{opacity:1}
+#tip .v{font:600 18px var(--f-mono)}
+#tip .k{display:flex;align-items:center;gap:8px}
+#tip .k i{display:inline-block;width:14px;height:3px;border-radius:2px}
+/* bottom bar */
+#bar{position:fixed;left:0;right:0;bottom:0;height:56px;padding-bottom:env(safe-area-inset-bottom,0px);padding-inline:16px;display:flex;align-items:center;gap:12px;background:var(--plane);border-top:1px solid var(--line2);z-index:20}
+#bar button{font:500 14px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:8px;height:36px;padding:0 12px;cursor:pointer}
+#bar button:hover{border-color:var(--ink2)}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#count{font:600 14px var(--f-mono);color:var(--ink2);min-width:64px;text-align:center}
+#prog{flex:1;height:4px;background:var(--line);border-radius:4px;overflow:hidden;min-width:40px}
+#prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#bar .opt{display:flex;gap:8px}
+@media (max-width:640px){#bar .opt .lbl{display:none}}
+#notes{position:fixed;left:16px;right:16px;bottom:calc(66px + env(safe-area-inset-bottom,0px));max-height:34vh;overflow:auto;z-index:30;background:var(--surface);color:var(--ink);border:1px solid var(--line2);border-radius:12px;padding:16px 20px;font-size:17px;line-height:1.65;box-shadow:0 12px 30px rgba(0,0,0,.2)}
+#notes .cue{color:var(--accent);font-weight:600}
+#notes h4{margin:0 0 6px;font:600 13px var(--f-mono);color:var(--accent);letter-spacing:.06em}
+/* slide-specific */
+.title-wrap{display:grid;grid-template-columns:1.25fr 1fr;gap:40px;height:100%;align-items:center}
+.title-wrap h1{font-size:74px;font-weight:900;letter-spacing:-.035em;line-height:1.08}
+.title-wrap h1 span{color:var(--accent)}
+.meta{display:flex;flex-direction:column;gap:6px;font-size:19px;color:var(--ink2);border-left:3px solid var(--accent);padding-left:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.kpi{border:1px solid var(--line2);border-radius:10px;padding:16px 18px;background:var(--surface)}
+.kpi .l{font-size:15.5px;color:var(--ink2)}
+.kpi .n{font:800 46px/1.1 var(--f-display);letter-spacing:-.02em;margin-top:6px}
+.kpi .n small{font-size:22px;font-weight:700;margin-left:2px}
+.kpi .d{font-size:14px;color:var(--muted);margin-top:4px}
+.layers{display:flex;flex-direction:column;gap:10px}
+.layer{display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:start;border:1px solid var(--line2);border-radius:10px;padding:13px 16px;background:var(--surface)}
+.layer .no{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font:700 18px var(--f-mono);background:var(--accent-soft);color:var(--accent)}
+.layer b{font-size:19px}
+.layer p{margin:3px 0 0;font-size:15.5px;color:var(--ink2);line-height:1.45}
+.layer .m{font:500 14px var(--f-mono);color:var(--ink);margin-top:5px}
+.radius{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.city{border:1px solid var(--line2);border-radius:10px;padding:12px;background:var(--surface);text-align:center}
+.city canvas{width:100%;height:auto;display:block;aspect-ratio:1/1;max-width:100%}
+.city .cn{font-weight:700;font-size:18px;margin-top:6px}
+.city .cv{font:600 28px var(--f-mono);margin-top:2px}
+.city .cs{font-size:14px;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--accent);height:28px}
+.ctl{display:flex;align-items:center;gap:16px;font-size:17px;color:var(--ink2)}
+.ctl label{white-space:nowrap;flex:none}
+.ctl output{font:600 20px var(--f-mono);color:var(--ink);min-width:92px;text-align:right}
+.ansoff{display:grid;grid-template-columns:150px 1fr 1fr;grid-template-rows:auto 1fr 1fr;gap:12px;flex:1;min-height:0}
+.ax{font:600 15px var(--f-mono);color:var(--muted);display:flex;align-items:center;justify-content:center;text-align:center}
+.quad{border:1px dashed var(--line2);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.quad .qt{font:600 14px var(--f-mono);color:var(--muted);letter-spacing:.04em}
+.alt{all:unset;cursor:pointer;display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center;border:1px solid var(--line2);border-radius:10px;padding:12px 14px;background:var(--surface);transition:border-color .15s,transform .15s}
+.alt:hover,.alt[aria-pressed="true"]{border-color:var(--ink);transform:translateY(-2px)}
+.alt .badge{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;color:#fff;font:700 20px var(--f-mono)}
+.alt b{font-size:19px;display:block}
+.alt span{font-size:14.5px;color:var(--ink2)}
+.detail{border:1px solid var(--line2);border-radius:12px;padding:20px 22px;background:var(--surface);display:flex;flex-direction:column;gap:12px}
+.detail h3{margin:0;font:800 26px var(--f-display)}
+.detail dl{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 14px;font-size:16.5px;line-height:1.5}
+.detail dt{color:var(--muted);font-weight:600}
+.detail dd{margin:0}
+.capm{display:flex;align-items:flex-end;gap:0;height:250px;margin-top:8px}
+.seg{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px}
+.seg .blk{width:150px;border-radius:6px 6px 0 0}
+.seg .lab{font-size:15px;color:var(--ink2);text-align:center;line-height:1.35}
+.seg .val{font:600 20px var(--f-mono)}
+.formula{font:500 19px/1.9 var(--f-mono);background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:16px 20px}
+table.res{border-collapse:collapse;width:100%;font-size:18px}
+table.res th{font:600 14px var(--f-mono);color:var(--muted);text-align:right;padding:8px 10px;border-bottom:1px solid var(--line2)}
+table.res th:first-child,table.res td:first-child{text-align:left}
+table.res td{padding:11px 10px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+table.res td:first-child{font-family:var(--f-body);font-weight:600}
+.key{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-1px}
+.pill{display:inline-block;font:600 13px var(--f-body);padding:4px 10px;border-radius:999px;border:1px solid currentColor}
+.pos{color:var(--good)}.neg{color:var(--bad)}
+.tabs{display:flex;gap:8px}
+.tabs button{all:unset;cursor:pointer;font:600 16px var(--f-body);padding:9px 16px;border-radius:999px;border:1px solid var(--line2);color:var(--ink2);display:inline-flex;align-items:center;gap:8px}
+.tabs button[aria-selected="true"]{border-color:var(--ink);color:var(--ink);background:var(--chip)}
+.big{font:700 40px var(--f-mono);letter-spacing:-.02em}
+.btn{all:unset;cursor:pointer;font:600 16px var(--f-body);padding:10px 18px;border-radius:10px;background:var(--ink);color:var(--surface)}
+.btn:hover{opacity:.9}
+.phases{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.phase{border:1px solid var(--line2);border-radius:12px;padding:18px 20px;background:var(--surface);display:flex;flex-direction:column;gap:10px;position:relative}
+.phase .when{font:600 15px var(--f-mono);color:var(--accent)}
+.phase h3{margin:0;font:800 24px var(--f-display)}
+.phase ul{margin:0;padding-left:20px;font-size:16.5px;line-height:1.55;color:var(--ink2)}
+.phase .gate{font-size:14.5px;border-top:1px solid var(--line);padding-top:10px;color:var(--ink)}
+.takeaways{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.tk{font-size:18px;line-height:1.5;padding-left:16px;border-left:3px solid var(--line2)}
+.tk b{display:block;font-size:20px;margin-bottom:4px}
+.thanks{display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center;height:100%}
+.thanks h1{font-size:84px;font-weight:900;letter-spacing:-.04em}
+.reflist{font-size:15px;line-height:1.7;color:var(--ink2);margin:0;padding-left:18px}
+.hint{font:500 15px var(--f-mono);color:var(--muted)}
+kbd{font:600 13px var(--f-mono);border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:var(--chip);color:var(--ink)}
+</style>
+
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div id="viewport"><div id="stage" role="region" aria-roledescription="slides" aria-label="발표 슬라이드">
+
+<!-- S1 -->
+<section class="slide" id="s1" aria-label="표지">
+  <div class="title-wrap">
+    <div class="col" style="gap:26px">
+      <div class="eyebrow" data-a="1"><span class="pin"></span>경제성공학 · 개인 과제 발표</div>
+      <h1 data-a="2">당근마켓의<br><span>위치기반 서비스</span><br>확장 가능성 연구</h1>
+      <p class="lead" data-a="3">‘동네 인증’으로 쌓은 위치 자산을 어디로 넓혀야 할까요? 확장 대안 네 가지를 NPV·IRR·위험분석으로 평가했습니다.</p>
+      <div class="meta" data-a="4"><span>한양대학교 융합시스템공학과 4학년 · 전성우(2022025932)</span><span>담당교수 조옥래 교수님 · 2026년 10월</span></div>
+      <div class="hint" data-a="5"><kbd>→</kbd> 다음 · <kbd>N</kbd> 발표자 노트 · <kbd>F</kbd> 전체화면</div>
+    </div>
+    <div data-a="3"><canvas id="heroMap" width="1200" height="1200" style="width:100%;max-width:100%;aspect-ratio:1/1;display:block" aria-label="동네 반경을 나타내는 지도 그림"></canvas></div>
+  </div>
+</section>
+
+<!-- S2 -->
+<section class="slide" id="s2" aria-label="현황">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>01 · 현황</div>
+  <h2 data-a="2">매달 2,000만 명 넘게 쓰는 동네 플랫폼, 그런데 <em>매출의 96%는 광고</em></h2>
+  <div class="kpis" data-a="3">
+    <div class="kpi"><div class="l">월간 이용자(MAU)</div><div class="n"><span data-count="2317">0</span><small>만 명</small></div><div class="d">2026.8 와이즈앱 · 회사 발표 2,100만+(2025)</div></div>
+    <div class="kpi"><div class="l">2025년 매출(연결)</div><div class="n"><span data-count="2707">0</span><small>억 원</small></div><div class="d">전년 대비 +43%</div></div>
+    <div class="kpi"><div class="l">2025년 영업이익(별도)</div><div class="n"><span data-count="671">0</span><small>억 원</small></div><div class="d">+78% · 연결 기준은 146억 원</div></div>
+    <div class="kpi"><div class="l">광고 매출 비중</div><div class="n"><span data-count="96">0</span><small>%</small></div><div class="d">2026 상반기 광고 1,634억 원</div></div>
+  </div>
+  <div class="row" style="flex:1;min-height:0" data-a="4">
+    <div class="col" style="flex:1.45"><svg id="finChart" viewBox="0 0 900 360" style="width:100%;height:100%" role="img" aria-label="2021~2025 매출과 영업이익 막대그래프"></svg></div>
+    <div class="col" style="flex:1;justify-content:center;gap:14px">
+      <div class="card"><b style="font-size:19px">흑자 전환은 빨랐지만</b><p class="small" style="margin:6px 0 0;font-size:16px;color:var(--ink2)">2023년 첫 연간 흑자 후 2025년 별도 영업이익률 24.9%. 2026 상반기도 연결 매출 +39%.</p></div>
+      <div class="card"><b style="font-size:19px">수익원은 하나, 해외는 적자</b><p class="small" style="margin:6px 0 0;font-size:16px;color:var(--ink2)">캐나다 법인은 매출 0원에 2025년 순손실 375억 원. 연결 이익을 525억 원 깎았습니다.</p></div>
+    </div>
+  </div>
+  <div class="src">출처: 당근 2025 실적 발표(2026.3.27), 바이라인네트워크(2026.8.31), MTN(2026.9.10), 딜사이트(2026.8.3). 2023년 영업이익은 재작성치 약 99억 원(최초 발표 173억 원).</div>
+</section>
+
+<!-- S3 -->
+<section class="slide" id="s3" aria-label="위치기반 구조">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>02 · 위치기반 서비스 구조</div>
+  <h2 data-a="2">GPS 동네 인증이 <em>신뢰 → 밀도 → 광고 가치</em>로 이어집니다</h2>
+  <div class="row" style="flex:1;min-height:0;gap:36px">
+    <div class="layers" style="flex:1.05" data-a="3">
+      <div class="layer"><div class="no">1</div><div><b>위치 인증</b><p>GPS로 행정동 단위 ‘내 동네’ 인증, 최대 2개 동네. 위치정보는 일회성 이용 후 파기</p><div class="m">MAU 2,100만 명+</div></div></div>
+      <div class="layer"><div class="no">2</div><div><b>근거리 매칭</b><p>중고거래·알바·부동산·중고차·동네생활을 가까운 순으로 추천</p><div class="m">중고거래 1.9억 건 · 알바 지원 5,000만 회(2025)</div></div></div>
+      <div class="layer"><div class="no">3</div><div><b>지역 타기팅 광고</b><p>비즈프로필, 반경 타기팅(도보 5분, 클릭당 최저 약 100원)</p><div class="m">비즈프로필 265만 개 · 광고주 +37%</div></div></div>
+      <div class="layer"><div class="no">4</div><div><b>오프라인 연결</b><p>당근페이 현장결제, 토스플레이스 POS로 예약·포장주문 연동</p><div class="m">현장결제 가맹점 30만+ · 제휴 대상 40만</div></div></div>
+    </div>
+    <div class="col" style="flex:1;gap:14px" data-a="4">
+      <div style="font-size:19px;font-weight:700">같은 반경 안에 사는 사람 수</div>
+      <div class="radius">
+        <div class="city"><canvas id="cvSeoul" width="420" height="420" aria-label="서울 반경 인구 점 그림"></canvas><div class="cn">서울</div><div class="cv mono" id="numSeoul">-</div><div class="cs">15,828명/㎢</div></div>
+        <div class="city"><canvas id="cvToronto" width="420" height="420" aria-label="토론토 반경 인구 점 그림"></canvas><div class="cn">토론토</div><div class="cv mono" id="numToronto">-</div><div class="cs">4,428명/㎢</div></div>
+      </div>
+      <div class="ctl"><label for="rKm">반경</label><input id="rKm" type="range" min="0.5" max="3" step="0.1" value="1.5"><output id="rOut" for="rKm">1.5 km</output></div>
+      <div class="small" style="font-size:15.5px;color:var(--ink2)">점 1개 = 500명. 밀도가 3.6배 차이 나면 같은 반경 안의 잠재 이웃도 3.6배 차이 납니다. 해외 확장(대안 D)이 어려운 이유입니다.</div>
+    </div>
+  </div>
+  <div class="src">출처: 당근 개인정보 처리방침(2026.9.25 시행), SBS Biz(2024.12.13), 딜사이트(2024.1.18), 당근 보도자료(2026.7.22, 2026.8.13). 인구밀도: 서울 2026년 1분기, 토론토 2021년 인구조사.</div>
+</section>
+
+<!-- S4 -->
+<section class="slide" id="s4" aria-label="확장 대안">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>03 · 확장 대안 도출</div>
+  <h2 data-a="2">위치 자산으로 갈 수 있는 <em>네 갈래 길</em> (앤소프 매트릭스)</h2>
+  <div class="row" style="flex:1;min-height:0;gap:28px">
+    <div class="ansoff" style="flex:1.35" data-a="3">
+      <div></div><div class="ax">기존 서비스 고도화</div><div class="ax">신규 서비스</div>
+      <div class="ax">국내<br>(기존 시장)</div>
+      <div class="quad"><div class="qt">시장 침투</div>
+        <button class="alt" data-alt="A" aria-pressed="true"><span class="badge" style="background:var(--sA)">A</span><span><b>AI 지역광고 고도화</b><span>광고 자동화 · 방문 성과 측정</span></span></button></div>
+      <div class="quad"><div class="qt">제품 개발</div>
+        <button class="alt" data-alt="B" aria-pressed="false"><span class="badge" style="background:var(--sB)">B</span><span><b>동네 커머스·결제</b><span>예약·포장주문 + 당근페이</span></span></button>
+        <button class="alt" data-alt="C" aria-pressed="false"><span class="badge" style="background:var(--sC)">C</span><span><b>동네 생활서비스 매칭</b><span>청소·이사·수리·레슨 견적</span></span></button></div>
+      <div class="ax">해외<br>(신규 시장)</div>
+      <div class="quad"><div class="qt">시장 개발</div>
+        <button class="alt" data-alt="D" aria-pressed="false"><span class="badge" style="background:var(--sGate)">D</span><span><b>글로벌 하이퍼로컬 확장</b><span>캐나다·미국 동부</span></span></button></div>
+      <div class="quad" style="justify-content:center"><div class="qt">다각화</div><div class="small" style="font-size:15.5px">검토 제외: 위치 자산을 쓰지 못하고 위험이 가장 큼</div></div>
+    </div>
+    <div class="detail" id="altDetail" style="flex:1" data-a="4" aria-live="polite"></div>
+  </div>
+  <div class="src">근거: 당근 보도자료(광고 MCP 2026.9.16, 현장결제 30만 2026.7.22, 토스플레이스 제휴 2026.8.13), Thumbtack(2021), BetaKit(2024.5.2), 딜사이트(2026.8.3).</div>
+</section>
+
+<!-- S5 -->
+<section class="slide" id="s5" aria-label="분석 전제">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>04 · 분석 전제</div>
+  <h2 data-a="2">같은 잣대로 비교합니다: <em>MARR 12%</em>, 7년, 세후현금흐름</h2>
+  <div class="row" style="flex:1;min-height:0;gap:48px;align-items:stretch">
+    <div class="col" style="flex:1" data-a="3">
+      <div style="font-size:20px;font-weight:700">MARR = 무위험수익률 + β × 시장위험프리미엄 (CAPM)</div>
+      <div class="capm" id="capm">
+        <div class="seg"><div class="val">4.38%</div><div class="blk grow" id="capm1" style="background:var(--line2);height:84px"></div><div class="lab">국고채 10년<br>(2026.10.7)</div></div>
+        <div class="seg" style="padding:0 18px;font:700 34px var(--f-mono);color:var(--muted);align-self:center">+</div>
+        <div class="seg"><div class="val">1.2 × 6.5% = 7.80%</div><div class="blk grow" id="capm2" style="background:var(--accent);height:150px"></div><div class="lab">β 1.2 × 위험프리미엄<br>(가정)</div></div>
+        <div class="seg" style="padding:0 18px;font:700 34px var(--f-mono);color:var(--muted);align-self:center">≈</div>
+        <div class="seg"><div class="val" style="font-size:30px">12%</div><div class="blk grow" style="background:var(--ink);height:230px"></div><div class="lab">MARR<br>(12.2% → 12%)</div></div>
+      </div>
+    </div>
+    <div class="col" style="flex:1;gap:18px" data-a="4">
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        <span class="chip">기준시점 <b>2026년 말</b></span><span class="chip">분석기간 <b>2027–2033</b></span>
+        <span class="chip">법인세 <b>24.2%</b></span><span class="chip">감가상각 <b>5년 정액</b></span>
+        <span class="chip">MAU <b>2,200만 · +2%/년</b></span><span class="chip">인건비 <b>1.3억/인 · +3%</b></span>
+        <span class="chip">잔존가치 <b>0 (보수적)</b></span><span class="chip">기준금리 <b>3.00%</b> (2026.8)</span>
+      </div>
+      <div class="formula">ATCF<sub>t</sub> = EBITDA<sub>t</sub> − 0.242 × (EBITDA<sub>t</sub> − D<sub>t</sub>)<br>NPV = −I<sub>0</sub> + Σ ATCF<sub>t</sub> / 1.12<sup>t</sup><br>AE = NPV × (A/P, 12%, 7) = NPV × 0.2191</div>
+      <div class="small" style="font-size:16px;color:var(--ink2)">신사업 손실은 본업 이익과 상계되어 절세효과가 생긴다고 보았습니다. 미래 가정은 공개 자료와 벤치마크에 근거한 추정치이며, 불확실성은 민감도·시뮬레이션으로 다룹니다.</div>
+    </div>
+  </div>
+  <div class="src">출처: 파이낸셜뉴스(국고채 금리, 2026.10.7), 아이뉴스24(기준금리 2.75%→3.00%, 2026.8.27), 뉴시스(법인세율 인상 국회 통과, 2025.12.3).</div>
+</section>
+
+<!-- S6 -->
+<section class="slide" id="s6" aria-label="경제성 분석 결과">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>05 · 경제성 분석 결과</div>
+  <h2 data-a="2">A가 가장 확실하고, B는 <em>설계를 바꾸면</em> 살아납니다</h2>
+  <div class="row" style="flex:1;min-height:0;gap:36px">
+    <div class="col" style="flex:1;gap:14px" data-a="3">
+      <table class="res" aria-label="대안별 경제성 지표"><thead><tr><th>대안</th><th>초기투자</th><th>NPV</th><th>AE</th><th>IRR</th><th>판정</th></tr></thead><tbody id="resBody"></tbody></table>
+      <div class="ctl" style="margin-top:6px"><label for="marr">MARR</label><input id="marr" type="range" min="4" max="24" step="0.5" value="12"><output id="marrOut" for="marr">12.0%</output></div>
+      <div class="small" style="font-size:15.5px;color:var(--ink2)">단위: 억 원. 슬라이더로 MARR을 바꾸면 NPV·AE가 다시 계산됩니다. B* = 제휴형 인프라(초기투자 70억) + 광고 연계 매출(거래액의 1%).</div>
+    </div>
+    <div class="col" style="flex:1.15" data-a="4"><svg id="profChart" viewBox="0 0 820 470" style="width:100%;height:100%" role="img" aria-label="할인율에 따른 NPV 프로파일"></svg></div>
+  </div>
+  <div class="src">NPV 곡선이 0과 만나는 할인율이 IRR입니다. 7년 분석, 잔존가치 0. 상세 현금흐름은 리포트 부록 A 참조.</div>
+</section>
+
+<!-- S7 -->
+<section class="slide" id="s7" aria-label="민감도 분석">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>06 · 민감도와 손익분기</div>
+  <h2 data-a="2">어떤 가정이 결론을 <em>뒤집을 수 있을까요</em></h2>
+  <div class="tabs" role="tablist" data-a="3" id="tTabs">
+    <button role="tab" data-t="A" aria-selected="true"><span class="key" style="background:var(--sA)"></span>A 광고 고도화</button>
+    <button role="tab" data-t="Bs" aria-selected="false"><span class="key" style="background:var(--sB)"></span>B* 커머스 개선안</button>
+    <button role="tab" data-t="C" aria-selected="false"><span class="key" style="background:var(--sC)"></span>C 생활서비스</button>
+  </div>
+  <div class="row" style="flex:1;min-height:0;gap:36px">
+    <div class="col" style="flex:1.35" data-a="4"><svg id="tornado" viewBox="0 0 900 400" style="width:100%;height:100%" role="img" aria-label="토네이도 도표"></svg></div>
+    <div class="col" style="flex:1;gap:16px;justify-content:center" data-a="5">
+      <div class="card" style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:18px;font-weight:700">직접 바꿔 보기: <span id="wiLabel"></span></div>
+        <div class="ctl"><input id="wi" type="range" aria-label="가장 민감한 변수 조절"><output id="wiOut" for="wi"></output></div>
+        <div style="display:flex;align-items:baseline;gap:12px"><span class="small" style="font-size:16px">NPV</span><span class="big" id="wiNpv">-</span><span id="wiPill" class="pill"></span></div>
+        <div class="small" style="font-size:15.5px;color:var(--ink2)" id="wiBe"></div>
+      </div>
+      <div class="small" style="font-size:15.5px;color:var(--ink2)">막대는 각 변수를 비관값↔낙관값으로 바꿨을 때의 NPV 범위입니다(나머지 변수는 기준값). 연한 쪽이 비관, 진한 쪽이 낙관입니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- S8 -->
+<section class="slide" id="s8" aria-label="몬테카를로 위험분석">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>07 · 확률적 위험분석</div>
+  <h2 data-a="2">미래를 10,000번 굴려 보면, <em>흑자 확률</em>은?</h2>
+  <div class="row" style="flex:1;min-height:0;gap:32px">
+    <div class="col" style="flex:1.6" data-a="3"><svg id="mcChart" viewBox="0 0 1000 470" style="width:100%;height:100%" role="img" aria-label="대안별 NPV 분포 히스토그램"></svg></div>
+    <div class="col" style="flex:1;gap:14px;justify-content:center" data-a="4">
+      <div id="mcStats" class="col" style="gap:10px"></div>
+      <div style="display:flex;gap:12px;align-items:center"><button class="btn" id="mcRun">새 난수로 다시 실행</button><span class="small" id="mcSeed" style="font-size:14px"></span></div>
+      <div class="small" style="font-size:15px;color:var(--ink2)">증분율·침투율·수수료율·과금 단가·잠식률·초기투자 초과·인건비·MAU 성장률을 삼각분포(비관·기준·낙관)로 두었습니다. 처음 화면은 리포트와 같은 난수(시드)입니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- S9 -->
+<section class="slide" id="s9" aria-label="의사결정나무">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>08 · 글로벌 확장(D) 의사결정나무</div>
+  <h2 data-a="2">해외는 한 번에 걸기보다 <em>단계적으로</em>: 포기 옵션의 가치</h2>
+  <div class="row" style="flex:1;min-height:0;gap:28px">
+    <div class="col" style="flex:1.1" data-a="3"><svg id="tree" viewBox="0 0 760 476" style="width:100%;height:100%" role="img" aria-label="글로벌 확장 의사결정나무"></svg></div>
+    <div class="col" style="flex:1;gap:12px" data-a="4">
+      <svg id="emvChart" viewBox="0 0 640 330" style="width:100%" role="img" aria-label="성공확률에 따른 전략별 기대 NPV"></svg>
+      <div class="ctl"><label for="pS">성공확률 p</label><input id="pS" type="range" min="0" max="100" step="1" value="35"><output id="pOut" for="pS">35%</output></div>
+      <div class="small" style="font-size:15.5px;color:var(--ink2)" id="treeMsg"></div>
+    </div>
+  </div>
+  <div class="src">캐롯 캐나다: 2025년 매출 0원, 순손실 375억 원(딜사이트 2026.8.3). 성공 시 연 300억 원 세후현금흐름 영구 발생 가정(자본화 등가 P = A/i), 철수비용 100억 원. 확률·현금흐름은 연구자 가정.</div>
+</section>
+
+<!-- S10 -->
+<section class="slide" id="s10" aria-label="결론과 로드맵">
+  <div class="eyebrow" data-a="1"><span class="pin"></span>09 · 결론과 제언</div>
+  <h2 data-a="2"><em>A 즉시</em> → B* 단계 확대 → C 파일럿 → D 게이트 관리</h2>
+  <div class="phases" data-a="3">
+    <div class="phase"><div class="when">1단계 · 2027</div><h3>광고 엔진 고도화</h3><ul><li>A 즉시 추진: 광고 MCP → 광고 생성·운영 자동화</li><li>현장결제 데이터로 매장 방문 성과 측정</li><li>D는 거점 집중 + 연간 손실 상한으로 전환</li></ul><div class="gate">관문: 광고 증분율 2% 이상</div></div>
+    <div class="phase"><div class="when">2단계 · 2027–2028</div><h3>거래 수익원 만들기</h3><ul><li>B*: 토스플레이스 등 제휴 인프라로 주문·결제</li><li>주문 가맹점 대상 광고 연계 상품</li><li>C: 수도권 2~3개 구, 이사·청소 파일럿</li></ul><div class="gate">관문: B* 수수료 2.3%+, 광고 연계 0.4%+ · C 견적요청률 3.5%+</div></div>
+    <div class="phase"><div class="when">3단계 · 2029~</div><h3>검증된 것만 확대</h3><ul><li>관문을 통과한 대안만 전국 확대</li><li>D는 거점 MAU 침투율·광고 ARPU 목표 달성 시에만 확장 투자</li></ul><div class="gate">관문: 거점 KPI 충족 여부</div></div>
+  </div>
+  <div class="takeaways" data-a="4">
+    <div class="tk" style="border-color:var(--sA)"><b>가장 확실한 가치</b>핵심 엔진인 지역광고를 AI·위치 데이터로 고도화(A): NPV 207억, 흑자 확률 94%</div>
+    <div class="tk" style="border-color:var(--sB)"><b>설계가 경제성을 바꾼다</b>커머스는 자체 구축 대신 제휴형·광고 연계형으로(B*): NPV −207억 → +104억</div>
+    <div class="tk" style="border-color:var(--sGate)"><b>불확실하면 옵션으로</b>C·D는 파일럿과 게이트로 단계 투자: 손실은 일찍 끊고 기회는 남긴다</div>
+  </div>
+</section>
+
+<!-- S11 -->
+<section class="slide" id="s11" aria-label="마무리">
+  <div class="thanks">
+    <div class="col" style="gap:22px">
+      <div class="eyebrow" data-a="1"><span class="pin"></span>Q&amp;A</div>
+      <h1 data-a="2">감사합니다</h1>
+      <p class="lead" data-a="3">질문 받겠습니다. 계산 가정과 연도별 현금흐름표, 생성형 AI 활용·검증 내역은 리포트 부록에 정리했습니다.</p>
+    </div>
+    <div class="card" data-a="4"><div style="font-weight:700;font-size:18px;margin-bottom:8px">주요 출처</div>
+      <ol class="reflist">
+        <li>당근 보도자료: 2025 실적(2026.3.27), 현장결제 30만(2026.7.22), 토스플레이스 제휴(2026.8.13), 광고 MCP(2026.9.16)</li>
+        <li>바이라인네트워크: 당근 2026 상반기 실적(2026.8.31)</li>
+        <li>딜사이트: 캐롯 캐나다 손실(2026.8.3) · 유니콘팩토리: 종속회사 손실(2026.3.27)</li>
+        <li>하나금융연구소(헤럴드경제 2025.10.15): 리커머스 시장 43조 원 전망</li>
+        <li>방송통신광고비 조사(2026.1.8) · 소상공인실태조사(2026.3.13)</li>
+        <li>Nextdoor FY2025 실적 · Zhu &amp; Iansiti, HBR(2019)</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<div id="tip" role="status" aria-live="polite"></div>
+</div></div>
+
+<nav id="bar" aria-label="슬라이드 이동">
+  <button id="prev" aria-label="이전 슬라이드">‹ 이전</button>
+  <span id="count" aria-live="polite">1 / 11</span>
+  <div id="prog" aria-hidden="true"><i></i></div>
+  <button id="next" aria-label="다음 슬라이드">다음 ›</button>
+  <div class="opt">
+    <button id="bNotes" aria-pressed="false">노트<span class="lbl"> (N)</span></button>
+    <button id="bTheme">테마<span class="lbl"> (T)</span></button>
+    <button id="bFull">전체화면<span class="lbl"> (F)</span></button>
+  </div>
+</nav>
+<aside id="notes" hidden aria-label="발표자 노트"><h4 id="notesH">발표자 노트</h4><div id="notesT"></div><div class="small" style="margin-top:8px;font-size:13px">화면을 미러링하면 이 노트가 청중에게도 보입니다. 실제 발표 땐 스크립트 PDF를 휴대폰이나 인쇄본으로 보세요.</div></aside>
+
+<script>
+(()=>{
+"use strict";
+/* ===================== 경제성 모델 (리포트의 Python 모델과 동일) ===================== */
+const N0=7, TAX=0.242, DEP=5, MAU0=2200, FTE0=1.3, FTEG=0.03;
+const COMMON={mau_g:0.02,fte_mult:1,i0_mult:1,marr:0.12,n:7};
+const BASE={
+  A:{i0:100,ad0:3400,ad_g:0.10,uplift:[.01,.02,.03,.04,.04,.04,.04],uplift_mult:1,fte:30,infra:0.10,onboard:10},
+  B:{i0:150,pen:[.02,.04,.06,.08,.09,.10,.10],pen_mult:1,gmv_user:30,take:0.03,var:0.012,fte:50,promo:[50,45,40,30,25,25,25],promo_mult:1,ad_syn:0},
+  C:{i0:80,req:[.015,.025,.035,.045,.05,.05,.05],req_mult:1,quotes:4,fee:0.4,cannibal:0.25,fte:35,supply:[30,25,20,15,15,15,15],ts:0.05,pay:0.02}
+};
+BASE.Bs=Object.assign({},BASE.B,{i0:70,fte:40,promo_mult:0.7,ad_syn:0.01});
+const KIND={A:"A",B:"B",Bs:"B",C:"C"};
+const NAME={A:"A 광고 고도화",B:"B 커머스(수수료형)",Bs:"B* 커머스 개선안",C:"C 생활서비스"};
+const COL={A:"--sA",B:"--sBg",Bs:"--sB",C:"--sC"};
+function growth(g,n,base){const o=[];let v=base;for(let i=0;i<n;i++){v=v*(1+g);o.push(v);}return o;}
+function ext(p,n){const o=[];for(let i=0;i<n;i++)o.push(p[Math.min(i,p.length-1)]);return o;}
+function flows(alt,p,c){
+  const k0=KIND[alt],n=c.n,fte=growth(FTEG,n,FTE0/(1+FTEG)).map(x=>x*c.fte_mult),mau=growth(c.mau_g,n,MAU0),i0=p.i0*c.i0_mult,rows=[];
+  for(let k=0;k<n;k++){
+    let rev,vr,fx;
+    if(k0==="A"){const ab=growth(p.ad_g,k+1,p.ad0)[k];rev=ab*ext(p.uplift,n)[k]*p.uplift_mult;vr=rev*p.infra;fx=p.fte*fte[k]+p.onboard;}
+    else if(k0==="B"){const buyers=mau[k]*ext(p.pen,n)[k]*p.pen_mult,gmv=buyers*p.gmv_user;rev=gmv*(p.take+(p.ad_syn||0));vr=gmv*p.var;fx=p.fte*fte[k]+ext(p.promo,n)[k]*p.promo_mult;}
+    else{const reqs=mau[k]*ext(p.req,n)[k]*p.req_mult,gross=reqs*p.quotes*p.fee;rev=gross*(1-p.cannibal);vr=gross*(p.ts+p.pay);fx=p.fte*fte[k]+ext(p.supply,n)[k];}
+    const e=rev-vr-fx,d=k<DEP?i0/DEP:0,tax=TAX*(e-d);rows.push({t:k+1,rev,ebitda:e,atcf:e-tax});
+  }
+  return {i0,rows};
+}
+function npvOf(cfs,i){let s=0;for(let t=0;t<cfs.length;t++)s+=cfs[t]/Math.pow(1+i,t);return s;}
+function irrOf(cfs){let lo=-0.99,hi=5,fl=npvOf(cfs,lo),fh=npvOf(cfs,hi);if(fl*fh>0)return null;for(let k=0;k<200;k++){const m=(lo+hi)/2,fm=npvOf(cfs,m);if(fl*fm<=0){hi=m;fh=fm;}else{lo=m;fl=fm;}}return (lo+hi)/2;}
+function metrics(alt,p,c){
+  p=p||BASE[alt];c=c||COMMON;const i=c.marr,{i0,rows}=flows(alt,p,c),cfs=[-i0].concat(rows.map(r=>r.atcf)),npv=npvOf(cfs,i),n=rows.length;
+  const ap=i===0?1/n:i*Math.pow(1+i,n)/(Math.pow(1+i,n)-1);
+  return {npv,ae:npv*ap,irr:irrOf(cfs),pi:(npv+i0)/i0,i0,cfs};
+}
+const SENS={
+  A:[["uplift_mult","광고 증분율","p",0.4,1.4],["ad_g","기존 광고 성장률","p",0.05,0.18],["infra","AI 인프라비","p",0.16,0.06],["i0_mult","초기투자","c",1.4,0.9],["fte_mult","인건비 단가","c",1.2,0.9],["marr","MARR","c",0.16,0.08]],
+  Bs:[["pen_mult","구매자 침투율","p",0.5,1.6],["ad_syn","광고 연계율","p",0,0.02],["take","수수료율","p",0.02,0.045],["gmv_user","1인당 거래액","p",20,42],["var","변동비율","p",0.016,0.009],["promo_mult","프로모션비","p",0.98,0.56],["i0_mult","초기투자","c",1.4,0.9],["fte_mult","인건비 단가","c",1.2,0.9],["mau_g","MAU 성장률","c",-0.01,0.04],["marr","MARR","c",0.16,0.08]],
+  C:[["req_mult","견적요청률","p",0.5,1.5],["fee","견적당 과금","p",0.25,0.6],["quotes","요청당 견적 수","p",3,5],["cannibal","광고 잠식률","p",0.40,0.10],["mau_g","MAU 성장률","c",-0.01,0.04],["fte_mult","인건비 단가","c",1.2,0.9],["marr","MARR","c",0.16,0.08],["i0_mult","초기투자","c",1.4,0.9]]
+};
+function withChange(alt,key,scope,val){const p=Object.assign({},BASE[alt]),c=Object.assign({},COMMON);(scope==="p"?p:c)[key]=val;return [p,c];}
+function tornado(alt){const base=metrics(alt).npv;const items=SENS[alt].map(([key,label,scope,pe,op])=>{const lo=metrics(alt,...withChange(alt,key,scope,pe)).npv,hi=metrics(alt,...withChange(alt,key,scope,op)).npv;return {key,label,pe,op,lo,hi,swing:Math.abs(hi-lo)};});items.sort((a,b)=>b.swing-a.swing);return {base,items};}
+function imul(a,b){return Math.imul(a,b)>>>0;}
+function mulberry32(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=imul(t^(t>>>15),1|t);t=(((t+imul(t^(t>>>7),61|t))>>>0)^t)>>>0;return ((t^(t>>>14))>>>0)/4294967296;};}
+function tri(u,a,c,b){const fc=(c-a)/(b-a);return u<fc?a+Math.sqrt(u*(b-a)*(c-a)):b-Math.sqrt((1-u)*(b-a)*(b-c));}
+const MCD={
+  A:[["uplift_mult","p",0.4,1,1.4],["ad_g","p",0.05,0.10,0.18],["infra","p",0.06,0.10,0.16],["i0_mult","c",0.9,1,1.4],["fte_mult","c",0.9,1,1.2]],
+  Bs:[["pen_mult","p",0.5,1,1.6],["gmv_user","p",20,30,42],["take","p",0.02,0.03,0.045],["var","p",0.009,0.012,0.016],["promo_mult","p",0.56,0.7,0.98],["ad_syn","p",0,0.01,0.02],["i0_mult","c",0.9,1,1.4],["fte_mult","c",0.9,1,1.2],["mau_g","c",-0.01,0.02,0.04]],
+  C:[["req_mult","p",0.5,1,1.5],["fee","p",0.25,0.4,0.6],["quotes","p",3,4,5],["cannibal","p",0.10,0.25,0.40],["i0_mult","c",0.9,1,1.4],["fte_mult","c",0.9,1,1.2],["mau_g","c",-0.01,0.02,0.04]]
+};
+const SEED={A:20261010,Bs:20261013,C:20261012};
+function mcSamples(alt,seed,n){const rnd=mulberry32(seed),out=new Float64Array(n);for(let s=0;s<n;s++){const p=Object.assign({},BASE[alt]),c=Object.assign({},COMMON);for(const [key,scope,a,m,b] of MCD[alt])(scope==="p"?p:c)[key]=tri(rnd(),a,m,b);out[s]=metrics(alt,p,c).npv;}return out;}
+const D={burn_full:450,yrs_full:3,burn_focus:250,yrs_focus:2,scale_up:450,S:300,exit_cost:100,i:0.12};
+const pa=(i,n)=>(1-Math.pow(1+i,-n))/i,pf=(i,n)=>Math.pow(1+i,-n);
+function dtree(p){const i=D.i,V=D.S/i,fc=D.burn_full*pa(i,D.yrs_full),fs=V*pf(i,D.yrs_full),ff=D.exit_cost*pf(i,D.yrs_full),gc=D.burn_focus*pa(i,D.yrs_focus),gs=D.scale_up*pf(i,D.yrs_focus+1),gv=V*pf(i,D.yrs_focus+2),gf=D.exit_cost*pf(i,D.yrs_focus);
+  return {V,fc,fs,ff,gc,gs,gv,gf,full:-fc+p*fs-(1-p)*ff,gate:-gc+p*(gv-gs)-(1-p)*gf,exit:-D.exit_cost};}
+window.__model={metrics,tornado,mcSamples,dtree,BASE,COMMON};
+
+/* ===================== 공통 유틸 ===================== */
+const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent,text){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(text!==undefined)e.textContent=text;if(parent)parent.appendChild(e);return e;}
+const fmt=(v,d=0)=>(v<0?"−":"")+Math.abs(v).toLocaleString("ko-KR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const stage=$("#stage"),tip=$("#tip");
+let scale=1;
+function fit(){const vp=$("#viewport").getBoundingClientRect();scale=Math.min(vp.width/1600,vp.height/900)*0.97;stage.style.transform=`scale(${scale})`;}
+addEventListener("resize",fit);
+function showTip(evt,html){
+  tip.replaceChildren();for(const line of html){const d=document.createElement("div");if(line.cls)d.className=line.cls;if(line.key){const i=document.createElement("i");i.style.background=line.key;d.appendChild(i);}d.appendChild(document.createTextNode(line.t));tip.appendChild(d);}
+  const r=stage.getBoundingClientRect();let x=(evt.clientX-r.left)/scale+16,y=(evt.clientY-r.top)/scale+16;
+  tip.classList.add("show");const w=tip.offsetWidth,h=tip.offsetHeight;if(x+w>1590)x-=w+32;if(y+h>890)y-=h+32;tip.style.left=x+"px";tip.style.top=y+"px";
+}
+function hideTip(){tip.classList.remove("show");}
+function hoverable(node,lines){node.style.cursor="default";node.setAttribute("tabindex","0");node.addEventListener("pointermove",e=>showTip(e,lines()));node.addEventListener("pointerleave",hideTip);
+  node.addEventListener("focus",()=>{const b=node.getBoundingClientRect();showTip({clientX:b.right,clientY:b.top},lines());});node.addEventListener("blur",hideTip);}
+function countUp(root){root.querySelectorAll("[data-count]").forEach(n=>{const to=+n.dataset.count;if(reduce){n.textContent=to.toLocaleString("ko-KR");return;}const t0=performance.now(),dur=1100;
+  (function step(t){const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);n.textContent=Math.round(to*e).toLocaleString("ko-KR");if(k<1)requestAnimationFrame(step);})(t0);});}
+
+/* ===================== S1: 히어로 지도 ===================== */
+function drawHero(){
+  const cv=$("#heroMap"),g=cv.getContext("2d"),W=cv.width,H=cv.height,cx=W/2,cy=H/2;let t0=performance.now();
+  const rnd=mulberry32(7),pins=[];for(let i=0;i<46;i++){const a=rnd()*Math.PI*2,r=Math.sqrt(rnd())*500;pins.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r,rnd()]);}
+  const roads=[];for(let i=0;i<14;i++)roads.push([rnd()*W,rnd()*H,rnd()*Math.PI]);
+  function frame(t){
+    const line=css("--line2"),acc=css("--accent"),ink=css("--ink"),surf=css("--surface");
+    g.clearRect(0,0,W,H);g.save();g.beginPath();g.arc(cx,cy,560,0,Math.PI*2);g.clip();
+    g.fillStyle=surf;g.fillRect(0,0,W,H);
+    g.strokeStyle=line;g.lineWidth=2;for(const [x,y,a] of roads){g.beginPath();g.moveTo(x-Math.cos(a)*1400,y-Math.sin(a)*1400);g.lineTo(x+Math.cos(a)*1400,y+Math.sin(a)*1400);g.stroke();}
+    g.lineWidth=6;g.strokeStyle=line;g.beginPath();g.moveTo(0,cy+140);g.bezierCurveTo(W*.3,cy+60,W*.6,cy+260,W,cy+180);g.stroke();
+    const k=reduce?0.6:((t-t0)/2600)%1;
+    for(const rr of [0,0.33,0.66]){const q=(k+rr)%1;g.beginPath();g.arc(cx,cy,60+q*470,0,Math.PI*2);g.strokeStyle=acc;g.globalAlpha=(1-q)*0.55;g.lineWidth=3;g.stroke();}
+    g.globalAlpha=1;
+    for(const [x,y,s] of pins){const d=Math.hypot(x-cx,y-cy);g.beginPath();g.arc(x,y,7+s*4,0,Math.PI*2);g.fillStyle=d<60+k*470?acc:ink;g.globalAlpha=d<60+k*470?0.95:0.35;g.fill();}
+    g.globalAlpha=1;g.restore();
+    g.beginPath();g.arc(cx,cy,560,0,Math.PI*2);g.strokeStyle=line;g.lineWidth=3;g.stroke();
+    g.save();g.translate(cx,cy-30);g.rotate(-Math.PI/4);g.fillStyle=acc;g.beginPath();g.moveTo(0,0);g.arc(0,-0.001,0,0,0);g.restore();
+    g.fillStyle=acc;g.beginPath();g.moveTo(cx,cy);g.arc(cx,cy-46,30,Math.PI*0.75,Math.PI*0.25);g.closePath();g.fill();
+    g.fillStyle=surf;g.beginPath();g.arc(cx,cy-46,11,0,Math.PI*2);g.fill();
+    if(!reduce&&cur===0)requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ===================== S2: 재무 차트 ===================== */
+function drawFin(){
+  const s=$("#finChart");s.replaceChildren();const W=900,H=360,m={l:70,r:20,t:20,b:44},iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const yrs=["2021","2022","2023","2024","2025"],rev=[257,499,1276,1891,2690],op=[-352,-464,99,376,671],y0=-600,y1=3000,Y=v=>m.t+ih*(1-(v-y0)/(y1-y0));
+  const gr=el("g",{class:"grid"},s),ax=el("g",{class:"axis"},s);
+  for(let v=-500;v<=3000;v+=500){el("line",{x1:m.l,x2:W-m.r,y1:Y(v),y2:Y(v)},gr);el("text",{x:m.l-10,y:Y(v)+5,"text-anchor":"end"},ax,v.toLocaleString("ko-KR"));}
+  el("line",{x1:m.l,x2:W-m.r,y1:Y(0),y2:Y(0),stroke:css("--muted"),"stroke-width":1.2},s);
+  el("text",{x:m.l-10,y:12,"text-anchor":"end",class:"axis"},ax,"억 원");
+  const bw=iw/yrs.length,barW=26;
+  yrs.forEach((yr,i)=>{
+    const cx=m.l+bw*(i+.5);el("text",{x:cx,y:H-14,"text-anchor":"middle"},ax,yr);
+    [[rev[i],"--sA",-1,"매출"],[op[i],"--sB",1,"영업이익"]].forEach(([v,c,side,lab])=>{
+      const x=cx+side*(barW/2+2)-barW/2,top=Math.min(Y(v),Y(0)),h=Math.abs(Y(v)-Y(0));
+      const r=el("rect",{x,y:Y(0),width:barW,height:0,rx:4,fill:css(c),class:"grow"},s);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{r.setAttribute("y",top);r.setAttribute("height",h);}));
+      const hit=el("rect",{x:x-6,y:Math.min(top,Y(0))-8,width:barW+12,height:h+16,fill:"transparent"},s);
+      hoverable(hit,()=>[{t:yr+"년",cls:""},{t:fmt(v)+"억 원",cls:"v"},{t:lab+(yr==="2023"&&lab==="영업이익"?" (재작성치)":""),key:css(c),cls:"k"}]);
+    });
+  });
+  [[4,2690,-1],[4,671,1],[2,99,1]].forEach(([i,v,side])=>{const cx=m.l+bw*(i+.5)+side*(barW/2+2);el("text",{x:cx,y:Y(v)-9,"text-anchor":"middle","font-size":15,"font-weight":600,fill:css("--ink"),"font-family":"IBM Plex Mono, monospace"},s,v.toLocaleString("ko-KR"));});
+  const lg=el("g",{},s);[["--sA","매출(별도)"],["--sB","영업이익(별도)"]].forEach(([c,t],i)=>{el("rect",{x:m.l+10+i*170,y:m.t+4,width:14,height:14,rx:3,fill:css(c)},lg);el("text",{x:m.l+30+i*170,y:m.t+16,"font-size":15,fill:css("--ink2")},lg,t);});
+}
+
+/* ===================== S3: 반경 데모 ===================== */
+const pts=(()=>{const r=mulberry32(99),a=[];for(let i=0;i<1800;i++){const th=r()*Math.PI*2,rr=Math.sqrt(r());a.push([Math.cos(th)*rr,Math.sin(th)*rr]);}return a;})();
+function drawCity(cv,dens,rkm,maxr){
+  const g=cv.getContext("2d"),W=cv.width,c=W/2,R=(W/2-14)*(rkm/maxr),pop=dens*Math.PI*rkm*rkm,nd=Math.min(pts.length,Math.round(pop/500)),scaleMax=(W/2-14);
+  g.clearRect(0,0,W,W);g.beginPath();g.arc(c,c,scaleMax,0,Math.PI*2);g.strokeStyle=css("--line");g.lineWidth=1.5;g.stroke();
+  g.beginPath();g.arc(c,c,R,0,Math.PI*2);g.fillStyle=css("--accent-soft");g.fill();g.strokeStyle=css("--accent");g.lineWidth=2.5;g.stroke();
+  g.fillStyle=css("--ink");for(let i=0;i<nd;i++){const [x,y]=pts[i];g.beginPath();g.arc(c+x*R,c+y*R,3,0,Math.PI*2);g.fill();}
+  g.fillStyle=css("--accent");g.beginPath();g.arc(c,c,6,0,Math.PI*2);g.fill();
+  return pop;
+}
+function drawRadius(){const r=+$("#rKm").value;$("#rOut").textContent=r.toFixed(1)+" km";
+  const a=drawCity($("#cvSeoul"),15828,r,3),b=drawCity($("#cvToronto"),4428,r,3);
+  $("#numSeoul").textContent=Math.round(a/100)*100>=10000?(a/10000).toFixed(1)+"만 명":Math.round(a).toLocaleString("ko-KR")+"명";
+  $("#numToronto").textContent=(b/10000).toFixed(1)+"만 명";}
+$("#rKm").addEventListener("input",drawRadius);
+
+/* ===================== S4: 대안 카드 ===================== */
+const ALTD={
+  A:{t:"A · AI 지역광고 고도화",c:"--sA",rows:[["내용","AI가 광고 문안·이미지를 만들고 운영. 반경·동선 기반 타기팅 정교화, 현장결제 데이터로 ‘광고 → 매장 방문’ 성과 측정"],["수익모델","기존 광고 매출의 증분(1%→4%)"],["초기투자","100억 원 · 전담 30명"],["근거","광고 MCP 출시(2026.9.16, Claude·ChatGPT 연동), 2025년 광고주 +37%"]]},
+  B:{t:"B · 동네 커머스·결제",c:"--sB",rows:[["내용","비즈프로필 매장의 예약·포장주문과 당근페이 결제를 하나로"],["수익모델","거래액의 3% 수수료 · 개선안 B*는 제휴형 인프라 + 광고 연계 매출(거래액의 1%)"],["초기투자","150억 원(B*는 70억 원)"],["근거","현장결제 가맹점 30만(2026.7), 토스플레이스 40만 가맹점 제휴(2026.8)"]]},
+  C:{t:"C · 동네 생활서비스 매칭",c:"--sC",rows:[["내용","청소·이사·수리·레슨 견적 요청을 동네 전문가와 연결"],["수익모델","견적 1건당 과금(리드 과금), 기존 전문가 광고 잠식 25% 차감"],["초기투자","80억 원 · 전담 35명"],["근거","비즈프로필 265만 개, 미국 Thumbtack(기업가치 32억 달러, 2021)"]]},
+  D:{t:"D · 글로벌 하이퍼로컬 확장",c:"--sGate",rows:[["내용","캐나다(토론토)·미국 동부에 국내 모델 이식"],["수익모델","지역광고·구인구직(장기)"],["현황","캐나다 가입자 100만(2024.5), 2025년 매출 0원·순손실 375억 원, 현지 약 200명"],["분석","수익이 불확실해 의사결정나무로 별도 평가"]]}
+};
+function showAlt(k){const d=ALTD[k],box=$("#altDetail");box.replaceChildren();const h=document.createElement("h3");h.textContent=d.t;h.style.borderLeft="6px solid "+css(d.c);h.style.paddingLeft="12px";box.appendChild(h);
+  const dl=document.createElement("dl");for(const [a,b] of d.rows){const dt=document.createElement("dt"),dd=document.createElement("dd");dt.textContent=a;dd.textContent=b;dl.append(dt,dd);}box.appendChild(dl);
+  $$(".alt").forEach(b=>b.setAttribute("aria-pressed",b.dataset.alt===k?"true":"false"));}
+$$(".alt").forEach(b=>{b.addEventListener("click",()=>showAlt(b.dataset.alt));b.addEventListener("mouseenter",()=>showAlt(b.dataset.alt));});
+
+/* ===================== S6: 결과 + NPV 프로파일 ===================== */
+const ORDER=["A","Bs","C","B"];
+function verdict(npv){return npv>50?["채택","pos"]:npv>0?["한계적","pos"]:["기각","neg"];}
+function drawRes(){
+  const i=+$("#marr").value/100;$("#marrOut").textContent=(i*100).toFixed(1)+"%";const tb=$("#resBody");tb.replaceChildren();
+  for(const a of ORDER){const m=metrics(a,null,Object.assign({},COMMON,{marr:i})),[v,cl]=verdict(m.npv),tr=document.createElement("tr");
+    const td0=document.createElement("td"),k=document.createElement("span");k.className="key";k.style.background=css(COL[a]);td0.append(k,document.createTextNode(NAME[a]));tr.appendChild(td0);
+    for(const t of [fmt(m.i0),fmt(m.npv,1),fmt(m.ae,1),m.irr===null?"-":fmt(m.irr*100,1)+"%"]){const td=document.createElement("td");td.textContent=t;tr.appendChild(td);}
+    const td=document.createElement("td"),pill=document.createElement("span");pill.className="pill "+cl;pill.textContent=(cl==="pos"?"▲ ":"▼ ")+v;td.appendChild(pill);tr.appendChild(td);tb.appendChild(tr);}
+  drawProfile(i);
+}
+let profBase=null;
+function drawProfile(iSel){
+  const s=$("#profChart"),W=820,H=470,m={l:70,r:28,t:44,b:50},iw=W-m.l-m.r,ih=H-m.t-m.b,x0=0,x1=30,y0=-260,y1=480;
+  const X=v=>m.l+iw*(v-x0)/(x1-x0),Y=v=>m.t+ih*(1-(v-y0)/(y1-y0));
+  if(!profBase){profBase={};for(const a of ORDER){profBase[a]=[];for(let k=0;k<=60;k++){const i=k/200;profBase[a].push([i*100,metrics(a,null,Object.assign({},COMMON,{marr:i})).npv]);}}}
+  s.replaceChildren();const gr=el("g",{class:"grid"},s),ax=el("g",{class:"axis"},s);
+  for(let v=-200;v<=400;v+=100){el("line",{x1:m.l,x2:W-m.r,y1:Y(v),y2:Y(v)},gr);el("text",{x:m.l-10,y:Y(v)+5,"text-anchor":"end"},ax,v);}
+  for(let v=0;v<=30;v+=5)el("text",{x:X(v),y:H-22,"text-anchor":"middle"},ax,v+"%");
+  el("text",{x:W-m.r,y:H-4,"text-anchor":"end","font-size":14,fill:css("--muted")},s,"할인율 i");
+  el("text",{x:4,y:m.t-14,"text-anchor":"start","font-size":14,fill:css("--muted")},s,"NPV(억 원)");
+  el("line",{x1:m.l,x2:W-m.r,y1:Y(0),y2:Y(0),stroke:css("--muted"),"stroke-width":1.2},s);
+  const xm=X(iSel*100);el("line",{x1:xm,x2:xm,y1:m.t,y2:H-m.b,stroke:css("--ink"),"stroke-width":1.5},s);
+  el("text",{x:xm+6,y:m.t+12,"font-size":15,"font-weight":600,fill:css("--ink")},s,"MARR "+(iSel*100).toFixed(1)+"%");
+  for(const a of ORDER){const d=profBase[a].map(([x,y],j)=>(j?"L":"M")+X(x).toFixed(1)+","+Y(y).toFixed(1)).join("");
+    el("path",{d,fill:"none",stroke:css(COL[a]),"stroke-width":a==="B"?2:3,"stroke-linecap":"round","stroke-linejoin":"round"},s);
+    const irr=metrics(a).irr;if(irr!==null&&irr>=0&&irr<=.3)el("circle",{cx:X(irr*100),cy:Y(0),r:5,fill:css("--surface"),stroke:css(COL[a]),"stroke-width":2.5},s);
+    const v=metrics(a,null,Object.assign({},COMMON,{marr:iSel})).npv;el("circle",{cx:xm,cy:Y(Math.max(y0,Math.min(y1,v))),r:6,fill:css(COL[a]),stroke:css("--surface"),"stroke-width":2},s);}
+  const lg=el("g",{},s);ORDER.forEach((a,j)=>{el("line",{x1:m.l+j*186,x2:m.l+22+j*186,y1:14,y2:14,stroke:css(COL[a]),"stroke-width":3,"stroke-linecap":"round"},lg);el("text",{x:m.l+30+j*186,y:19,"font-size":15,fill:css("--ink2")},lg,NAME[a]);});
+  const hit=el("rect",{x:m.l,y:m.t,width:iw,height:ih,fill:"transparent"},s);
+  hit.addEventListener("pointermove",e=>{const r=s.getBoundingClientRect(),xv=((e.clientX-r.left)/r.width*W-m.l)/iw*(x1-x0);if(xv<0||xv>30)return;const i=Math.round(xv*2)/200;
+    showTip(e,[{t:"할인율 "+(i*100).toFixed(1)+"%"}].concat(ORDER.map(a=>({t:NAME[a]+"  "+fmt(metrics(a,null,Object.assign({},COMMON,{marr:i})).npv,1)+"억",key:css(COL[a]),cls:"k"}))));});
+  hit.addEventListener("pointerleave",hideTip);
+}
+$("#marr").addEventListener("input",drawRes);
+
+/* ===================== S7: 토네이도 + what-if ===================== */
+let tSel="A";
+const WI={
+  A:{label:"광고 증분율(최대)",min:0,max:6,step:0.1,val:4,unit:"%",apply:v=>[Object.assign({},BASE.A,{uplift_mult:v/4}),COMMON],be:"손익분기: 최대 증분율 약 2.2% (기준 4%의 56%)"},
+  Bs:{label:"수수료율",min:1,max:5,step:0.05,val:3,unit:"%",apply:v=>[Object.assign({},BASE.Bs,{take:v/100}),COMMON],be:"손익분기 수수료율: 2.34% (기존 설계 B는 4.31%)"},
+  C:{label:"견적요청률(최대)",min:2,max:8,step:0.1,val:5,unit:"%",apply:v=>[Object.assign({},BASE.C,{req_mult:v/5}),COMMON],be:"손익분기: 최대 견적요청률 약 4.76% (기준의 95%)"}
+};
+function drawTornado(){
+  const s=$("#tornado");s.replaceChildren();const W=900,H=400,m={l:170,r:30,t:30,b:40},T=tornado(tSel),items=T.items.slice(0,6),c=css(COL[tSel]);
+  let lo=Math.min(0,...items.map(d=>Math.min(d.lo,d.hi))),hi=Math.max(...items.map(d=>Math.max(d.lo,d.hi)));lo=Math.floor((lo-20)/100)*100;hi=Math.ceil((hi+20)/100)*100;
+  const iw=W-m.l-m.r,X=v=>m.l+iw*(v-lo)/(hi-lo),bh=(H-m.t-m.b)/items.length;
+  const gr=el("g",{class:"grid"},s),ax=el("g",{class:"axis"},s),step=(hi-lo)>600?200:100;
+  for(let v=lo;v<=hi;v+=step){el("line",{x1:X(v),x2:X(v),y1:m.t-6,y2:H-m.b},gr);el("text",{x:X(v),y:H-14,"text-anchor":"middle"},ax,v);}
+  items.forEach((d,j)=>{const y=m.t+j*bh+bh*0.22,h=bh*0.56;
+    el("text",{x:m.l-14,y:y+h/2+6,"text-anchor":"end","font-size":17,fill:css("--ink")},s,d.label);
+    const rp=el("rect",{x:X(Math.min(d.lo,T.base)),y,width:Math.abs(X(d.lo)-X(T.base)),height:h,fill:c,opacity:.42,rx:3},s);
+    const ro=el("rect",{x:X(Math.min(d.hi,T.base)),y,width:Math.abs(X(d.hi)-X(T.base)),height:h,fill:c,rx:3},s);
+    const hit=el("rect",{x:m.l,y:m.t+j*bh,width:iw,height:bh,fill:"transparent"},s);
+    hoverable(hit,()=>[{t:d.label},{t:"비관 "+fmt(d.lo,1)+"억 · 낙관 "+fmt(d.hi,1)+"억",cls:"v"},{t:"기준 NPV "+fmt(T.base,1)+"억"}]);});
+  el("line",{x1:X(T.base),x2:X(T.base),y1:m.t-12,y2:H-m.b,stroke:css("--ink"),"stroke-width":1.5},s);
+  el("text",{x:X(T.base),y:m.t-16,"text-anchor":"middle","font-size":14,"font-weight":600,fill:css("--ink")},s,"기준 "+fmt(T.base,0)+"억");
+  if(lo<0)el("line",{x1:X(0),x2:X(0),y1:m.t,y2:H-m.b,stroke:css("--muted"),"stroke-width":1.2},s);
+  // what-if
+  const w=WI[tSel],inp=$("#wi");inp.min=w.min;inp.max=w.max;inp.step=w.step;inp.value=w.val;$("#wiLabel").textContent=w.label;$("#wiBe").textContent=w.be;drawWI();
+}
+function drawWI(){const w=WI[tSel],v=+$("#wi").value,npv=metrics(tSel,...w.apply(v)).npv;$("#wiOut").textContent=v.toFixed(w.step<0.1?2:1)+w.unit;
+  const n=$("#wiNpv");n.textContent=fmt(npv,1)+"억";n.style.color=css(npv>=0?"--good":"--bad");const p=$("#wiPill");p.className="pill "+(npv>=0?"pos":"neg");p.textContent=npv>=0?"▲ NPV > 0 채택 가능":"▼ NPV < 0 기각";}
+$("#wi").addEventListener("input",drawWI);
+$$("#tTabs button").forEach(b=>b.addEventListener("click",()=>{tSel=b.dataset.t;$$("#tTabs button").forEach(x=>x.setAttribute("aria-selected",x===b?"true":"false"));drawTornado();}));
+
+/* ===================== S8: 몬테카를로 ===================== */
+let mcSeedOffset=0,mcAnim=null;
+function drawMC(animate){
+  const s=$("#mcChart"),W=1000,H=470,m={l:20,r:20,t:16,b:44},alts=["A","Bs","C"],rowH=(H-m.t-m.b)/3,x0=-500,x1=800,bins=52,bw=(x1-x0)/bins,iw=W-m.l-m.r,X=v=>m.l+iw*(v-x0)/(x1-x0);
+  const data=alts.map(a=>Array.from(mcSamples(a,SEED[a]+mcSeedOffset,10000)));
+  $("#mcSeed").textContent=mcSeedOffset?"시드 +"+mcSeedOffset:"기본 시드(리포트와 동일)";
+  const stats=$("#mcStats");stats.replaceChildren();
+  alts.forEach((a,j)=>{const d=data[j],mean=d.reduce((x,y)=>x+y,0)/d.length,pp=d.filter(v=>v>0).length/d.length;
+    const row=document.createElement("div");row.className="card";row.style.cssText="display:grid;grid-template-columns:1fr auto;align-items:center;padding:12px 16px";
+    const l=document.createElement("div"),k=document.createElement("span");k.className="key";k.style.background=css(COL[a]);l.append(k,document.createTextNode(NAME[a]));l.style.cssText="font-size:17px;font-weight:600";
+    const r=document.createElement("div");r.style.textAlign="right";const big=document.createElement("div");big.className="mono";big.style.cssText="font-size:30px;font-weight:600";big.textContent=(pp*100).toFixed(1)+"%";
+    const sm=document.createElement("div");sm.className="small";sm.textContent="흑자 확률 · 평균 "+fmt(mean,0)+"억";r.append(big,sm);row.append(l,r);stats.appendChild(row);});
+  s.replaceChildren();const ax=el("g",{class:"axis"},s);
+  for(let v=-400;v<=800;v+=200)el("text",{x:X(v),y:H-16,"text-anchor":"middle"},ax,v);
+  el("text",{x:W-m.r,y:H-0,"text-anchor":"end","font-size":13,fill:css("--muted")},s,"NPV(억 원)");
+  const groups=alts.map((a,j)=>{const y0=m.t+j*rowH,base=y0+rowH-10;el("line",{x1:m.l,x2:W-m.r,y1:base,y2:base,stroke:css("--line2")},s);
+    el("text",{x:m.l+4,y:y0+20,"font-size":16,"font-weight":600,fill:css("--ink")},s,NAME[a]);
+    const g=el("g",{},s);return {a,g,base,top:y0+28};});
+  el("line",{x1:X(0),x2:X(0),y1:m.t,y2:H-m.b+6,stroke:css("--ink"),"stroke-width":1.5},s);
+  el("text",{x:X(0)+6,y:H-m.b+2,"font-size":13,fill:css("--ink")},s,"NPV = 0");
+  const counts=alts.map(()=>new Array(bins).fill(0)),maxC=data.map(d=>{const c=new Array(bins).fill(0);for(const v of d){const b=Math.floor((v-x0)/bw);if(b>=0&&b<bins)c[b]++;}return Math.max(...c);});
+  let done=0;const total=10000,chunk=animate&&!reduce?400:total;
+  if(mcAnim)cancelAnimationFrame(mcAnim);
+  (function step(){const end=Math.min(total,done+chunk);data.forEach((d,j)=>{for(let k=done;k<end;k++){const b=Math.floor((d[k]-x0)/bw);if(b>=0&&b<bins)counts[j][b]++;}});done=end;
+    groups.forEach((G,j)=>{G.g.replaceChildren();const hmax=G.base-G.top;for(let b=0;b<bins;b++){const c=counts[j][b];if(!c)continue;const h=hmax*c/maxC[j],x=X(x0+b*bw)+1;
+      const r=el("rect",{x,y:G.base-h,width:Math.max(1,iw/bins-2),height:h,fill:css(COL[G.a]),rx:2},G.g);}});
+    if(done<total)mcAnim=requestAnimationFrame(step);})();
+}
+$("#mcRun").addEventListener("click",()=>{mcSeedOffset+=1;drawMC(true);});
+
+/* ===================== S9: 의사결정나무 ===================== */
+function drawTree(){
+  const p=+$("#pS").value/100;$("#pOut").textContent=Math.round(p*100)+"%";const R=dtree(p),best=["full","gate","exit"].reduce((a,b)=>R[a]>=R[b]?a:b);
+  const s=$("#tree");s.replaceChildren();const ink=css("--ink"),ink2=css("--ink2"),line=css("--line2");
+  const col={full:css("--sFull"),gate:css("--sGate"),exit:css("--sExit")};
+  const node=(x,y,shape,c)=>shape==="sq"?el("rect",{x:x-16,y:y-16,width:32,height:32,rx:4,fill:c}, s):el("circle",{cx:x,cy:y,r:15,fill:c},s);
+  const edge=(x1,y1,x2,y2,c,w)=>el("path",{d:`M${x1},${y1} C${(x1+x2)/2},${y1} ${(x1+x2)/2},${y2} ${x2},${y2}`,fill:"none",stroke:c,"stroke-width":w},s);
+  const txt=(x,y,t,o={})=>el("text",Object.assign({x,y,"font-size":15,fill:ink2},o),s,t);
+  const D0=[40,215],F=[300,90],G=[300,240],E=[300,372];
+  const br=[["full",F,"① 전면 확장","3년 × 450억"],["gate",G,"② 게이트(거점 집중)","2년 × 250억 → KPI 확인"],["exit",E,"③ 즉시 철수","철수비용 100억"]];
+  for(const [k,P,lab,sub] of br){const on=k===best;edge(D0[0]+16,D0[1],P[0]-16,P[1],on?col[k]:line,on?5:2.5);
+    txt(110,P[1]+(P[1]<D0[1]?-34:P[1]>D0[1]?44:-18),lab,{"font-size":17,"font-weight":700,fill:ink});txt(110,P[1]+(P[1]<D0[1]?-14:P[1]>D0[1]?64:2),sub,{"font-size":14});}
+  node(D0[0],D0[1],"sq",ink);
+  node(F[0],F[1],"c",col.full);node(G[0],G[1],"c",col.gate);el("rect",{x:E[0]-12,y:E[1]-12,width:24,height:24,fill:col.exit,transform:`rotate(45 ${E[0]} ${E[1]})`},s);
+  const leaf=(P,dy,lab,val)=>{edge(P[0]+15,P[1],520,P[1]+dy,line,2);txt(395,P[1]+dy/2+(dy<0?-8:18),lab,{"font-size":14});
+    el("text",{x:530,y:P[1]+dy+5,"font-size":15,fill:ink,"font-family":"IBM Plex Mono, monospace"},s,val);};
+  leaf(F,-42,"성공 "+Math.round(p*100)+"%","+"+fmt(R.fs,0)+" (가치 PV)");leaf(F,42,"실패 "+Math.round((1-p)*100)+"%","−"+fmt(R.ff,0)+" (철수)");
+  leaf(G,-42,"성공 "+Math.round(p*100)+"%","+"+fmt(R.gv-R.gs,0)+" (확장 후)");leaf(G,42,"실패 "+Math.round((1-p)*100)+"%","−"+fmt(R.gf,0)+" (조기 철수)");
+  for(const [k,P] of [["full",F],["gate",G],["exit",E]]){const on=k===best;const t=el("text",{x:P[0],y:P[1]+(k==="exit"?-24:-24),"text-anchor":"middle","font-size":on?19:16,"font-weight":700,fill:on?ink:ink2,"font-family":"IBM Plex Mono, monospace"},s,"EMV "+fmt(R[k],0));}
+  el("text",{x:530,y:E[1]+5,"font-size":15,fill:ink,"font-family":"IBM Plex Mono, monospace"},s,"−100");edge(E[0]+14,E[1],520,E[1],line,2);
+  txt(40,470,"단위: 억 원(2026년 말 현재가치). 투자 PV — 전면 "+fmt(R.fc,0)+" · 게이트 "+fmt(R.gc,0),{"font-size":13});
+  const names={full:"전면 확장",gate:"게이트(거점 집중 후 단계 확장)",exit:"즉시 철수"};
+  $("#treeMsg").textContent=`p = ${Math.round(p*100)}%에서 최선은 ‘${names[best]}’(EMV ${fmt(R[best],0)}억). 게이트는 p ≥ 29.8%, 전면 확장은 p ≥ 56.9%일 때 철수보다 낫습니다.`;
+  drawEMV(p,best);
+}
+function drawEMV(pSel,best){
+  const s=$("#emvChart");s.replaceChildren();const W=640,H=330,m={l:62,r:16,t:34,b:40},iw=W-m.l-m.r,ih=H-m.t-m.b,y0=-1200,y1=1000,X=v=>m.l+iw*v,Y=v=>m.t+ih*(1-(v-y0)/(y1-y0));
+  const gr=el("g",{class:"grid"},s),ax=el("g",{class:"axis"},s);
+  for(let v=-1000;v<=1000;v+=500){el("line",{x1:m.l,x2:W-m.r,y1:Y(v),y2:Y(v)},gr);el("text",{x:m.l-8,y:Y(v)+5,"text-anchor":"end"},ax,v);}
+  for(let v=0;v<=100;v+=25)el("text",{x:X(v/100),y:H-14,"text-anchor":"middle"},ax,v+"%");
+  el("line",{x1:m.l,x2:W-m.r,y1:Y(0),y2:Y(0),stroke:css("--muted")},s);
+  const keys=[["gate","--sGate","게이트"],["full","--sFull","전면 확장"],["exit","--sExit","철수"]];
+  for(const [k,c,lab] of keys){let d="";for(let q=0;q<=100;q+=2){const R=dtree(q/100);d+=(q?"L":"M")+X(q/100).toFixed(1)+","+Y(Math.max(y0,Math.min(y1,R[k]))).toFixed(1);}
+    el("path",{d,fill:"none",stroke:css(c),"stroke-width":k===best?3.5:2,"stroke-linecap":"round"},s);}
+  keys.forEach(([k,c,lab],j)=>{el("line",{x1:m.l+j*130,x2:m.l+20+j*130,y1:14,y2:14,stroke:css(c),"stroke-width":3,"stroke-linecap":"round"},s);el("text",{x:m.l+26+j*130,y:19,"font-size":14,fill:css("--ink2")},s,lab);});
+  const xs=X(pSel);el("line",{x1:xs,x2:xs,y1:m.t,y2:H-m.b,stroke:css("--ink"),"stroke-width":1.5},s);
+  const R=dtree(pSel);for(const [k,c] of keys){el("circle",{cx:xs,cy:Y(Math.max(y0,Math.min(y1,R[k]))),r:5.5,fill:css(c),stroke:css("--surface"),"stroke-width":2},s);}
+  el("text",{x:W-m.r,y:H-0,"text-anchor":"end","font-size":13,fill:css("--muted")},s,"성공확률 p");
+}
+$("#pS").addEventListener("input",drawTree);
+
+/* ===================== 발표자 노트 ===================== */
+const NOTES=[{"t": "안녕하세요, 융합시스템공학과 전성우입니다. 제 주제는 당근마켓의 위치기반 서비스 확장 가능성입니다. 당근은 동네 인증으로 \"내 동네\" 데이터를 꾸준히 쌓아 왔는데요. 이걸 어디로 넓혀야 남는 장사인지, 수업에서 배운 NPV와 IRR로 따져 봤습니다.", "sec": 20, "cum": "0:20", "title": "표지"}, {"t": "당근은 지금 한 달에 2천만 명 넘게 씁니다. 작년 매출은 2,707억 원으로, 1년 새 43%가 늘었어요. 본업만 떼어 보면 영업이익도 671억 원입니다. 문제는 돈이 거의 한 군데서 나온다는 겁니다. 매출의 96%가 광고예요. 캐나다 법인은 매출이 0원인데 작년 한 해에만 375억 원을 잃었고요. 그래서 이번 연구에서는 광고 다음 수익원을 어디서 찾을 수 있을지 따져 봤습니다.", "sec": 30, "cum": "0:50", "title": "현황"}, {"t": "당근이 다른 중고거래 앱과 다른 점은 GPS로 내 동네를 인증한다는 겁니다. 인증한 동네를 기준으로 가까운 매물과 동네 알바를 먼저 보여 주고, 그 동네 정보를 가게 사장님들께 광고로 팝니다. 요즘은 가게 현장결제까지 붙였습니다. 그러니까 이 사업은 한 동네에 사람이 얼마나 모여 사느냐에 달려 있어요. [반경 슬라이더를 3km까지 올린다] 반경을 똑같이 3km로 잡아도 서울에는 토론토보다 3.6배 많은 사람이 삽니다. 해외 확장이 왜 어려운지 여기서 보이는데, 뒤에서 다시 말씀드리겠습니다.", "sec": 35, "cum": "1:25", "title": "위치기반 서비스 구조"}, {"t": "이 자산으로 갈 수 있는 방향을 앤소프 매트릭스로 네 가지 뽑았습니다. [A·B·C·D 카드에 차례로 마우스를 올린다] A는 지금의 광고를 AI로 더 정교하게 만드는 것, B는 동네 가게 예약과 포장주문, 결제를 붙이는 것, C는 청소나 이사 같은 생활서비스 견적을 연결해 주는 것, D는 북미 확장입니다. 네 가지 모두 당근이 이미 조금씩 손대고 있는 분야예요. 올해만 해도 광고 MCP를 내놨고, 토스플레이스와 제휴했습니다.", "sec": 30, "cum": "1:55", "title": "확장 대안 도출"}, {"t": "비교 기준은 MARR 12%입니다. 국고채 10년물 금리가 4.38%이고, 여기에 베타 1.2와 시장위험프리미엄 6.5%를 곱한 값을 더하면 12.2%가 나옵니다. 세율은 지방세까지 합쳐 24.2%, 초기투자는 5년 정액으로 감가상각했습니다. 이 조건으로 2027년부터 7년 동안의 세후현금흐름을 놓고 NPV와 IRR, 연간등가를 계산했습니다.", "sec": 25, "cum": "2:20", "title": "분석 전제"}, {"t": "결과부터 말씀드리면, A가 제일 좋습니다. NPV 207억 원에 IRR 41.5%예요. 이미 3천억 원대 광고 매출이 있으니까, 거기서 몇 퍼센트만 더 끌어올려도 남는 게 큽니다. 제가 가장 재밌게 본 건 B였습니다. 수수료만 받는 식이면 NPV가 마이너스 207억 원이에요. 그런데 결제 단말기는 토스플레이스 같은 곳과 제휴해 해결하고, 주문 들어오는 가게에 광고까지 붙여 팔면 플러스 104억 원으로 돌아섭니다. 아이템은 같은데 짜는 방식에 따라 결과가 뒤집힌 거죠. C는 15억 원으로 간신히 넘었습니다. [MARR 슬라이더를 16%로 올린다] 기준을 조금만 높여도 C는 바로 마이너스로 내려갑니다.", "sec": 40, "cum": "3:00", "title": "경제성 분석 결과"}, {"t": "그럼 어떤 가정이 틀리면 결론이 바뀔까요? 이 토네이도 도표는 가정을 하나씩 비관적으로, 또 낙관적으로 바꿔 보면서 NPV가 얼마나 움직이는지 보여 줍니다. A는 광고 증분율이 제 가정의 56%까지 떨어져야 겨우 본전이라 꽤 잘 버팁니다. [B* 탭을 누르고 수수료율 슬라이더를 2.2%로 내린다] B*는 수수료가 2.34% 밑으로 내려가면 마이너스입니다. C는 지금 가정이 거의 손익분기점이라서, 조금만 어긋나도 손해가 납니다.", "sec": 30, "cum": "3:30", "title": "민감도와 손익분기"}, {"t": "계산 한 번으로 나온 숫자는 여러 미래 중 하나일 뿐입니다. 그래서 주요 가정에 범위를 주고 만 번을 돌려 봤어요. 흑자가 날 확률은 A가 94%, B*가 74%, C가 50%였습니다. [새 난수로 다시 실행을 누른다] 난수를 바꿔 다시 돌려도 순서는 그대로입니다. A는 믿고 가도 되고, B*와 C는 작게 먼저 해 보고 판단하는 게 맞다고 봤습니다.", "sec": 25, "cum": "3:55", "title": "확률적 위험분석"}, {"t": "해외는 성공할지 말지가 워낙 불확실해서 의사결정나무로 따로 봤습니다. 지금처럼 3년 동안 해마다 450억 원씩 쏟아붓는 전면 확장은, 성공확률이 57%를 넘어야 그냥 철수하는 것보다 낫습니다. 그 정도 확신을 갖기는 어렵습니다. 대신 토론토 같은 인구 밀집 지역에 2년만 먼저 집중하고, 성과가 나올 때만 판을 키우면 30%만 넘어도 됩니다. [성공확률 슬라이더를 25%로 내렸다가 35%로 되돌린다] 30% 아래면 철수가, 그 위면 단계적으로 가는 쪽이 낫습니다. 안 되면 2년 차에 접으면 되니까 손실도 거기서 끝납니다.", "sec": 40, "cum": "4:35", "title": "글로벌 확장 의사결정나무"}, {"t": "정리하면 이렇습니다. 2027년에는 A부터 바로 시작하고, 해외는 손실 한도를 미리 정해 둔 단계적 방식으로 바꿉니다. 2028년까지는 B*를 제휴 위주로 키우고, C는 수도권 몇 개 구에서만 시범 운영해 봅니다. 미리 정한 기준을 넘은 사업만 2029년부터 전국으로 넓히고요. A는 지금 바로, 나머지는 검증하면서 단계적으로. 이게 제 결론입니다.", "sec": 25, "cum": "5:00", "title": "결론과 제언"}, {"t": "들어 주셔서 감사합니다. 궁금한 점 있으시면 편하게 질문해 주세요.", "sec": 5, "cum": "5:05", "title": "Q&A"}];
+
+function renderNote(t){const box=$("#notesT");box.replaceChildren();t.split(/(\[[^\]]+\])/).forEach(part=>{if(!part)return;if(part.startsWith("[")){const c=document.createElement("b");c.className="cue";c.textContent=part;box.appendChild(c);}else box.appendChild(document.createTextNode(part));});}
+/* ===================== 내비게이션 ===================== */
+const slides=$$(".slide");let cur=0;
+const enter={0:drawHero,1:()=>{countUp(slides[1]);drawFin();},2:drawRadius,3:()=>showAlt($$(".alt").find(b=>b.getAttribute("aria-pressed")==="true").dataset.alt),5:drawRes,6:drawTornado,7:()=>drawMC(true),8:drawTree};
+function go(n,push=true){n=Math.max(0,Math.min(slides.length-1,n));slides[cur].classList.remove("on");cur=n;slides[cur].classList.add("on");hideTip();
+  $("#count").textContent=(cur+1)+" / "+slides.length;$("#prog i").style.width=((cur+1)/slides.length*100)+"%";
+  const nt=NOTES[cur]||{t:"",sec:0,cum:""};$("#notesH").textContent=`발표자 노트 · ${cur+1}/${slides.length} ${nt.title} · 약 ${nt.sec}초 · 누적 ${nt.cum}`;renderNote(nt.t);
+  if(push)try{history.replaceState(null,"","#"+slides[cur].id);}catch(e){}
+  try{(enter[cur]||(()=>{}))();}catch(e){console.error(e);}
+}
+$("#prev").addEventListener("click",()=>go(cur-1));$("#next").addEventListener("click",()=>go(cur+1));
+function toggleNotes(){const n=$("#notes");n.hidden=!n.hidden;$("#bNotes").setAttribute("aria-pressed",String(!n.hidden));}
+function toggleTheme(){const r=document.documentElement,dark=r.getAttribute("data-theme")?r.getAttribute("data-theme")==="dark":matchMedia("(prefers-color-scheme: dark)").matches;r.setAttribute("data-theme",dark?"light":"dark");go(cur,false);}
+function toggleFull(){try{if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});else document.exitFullscreen().catch(()=>{});}catch(e){}}
+$("#bNotes").addEventListener("click",toggleNotes);$("#bTheme").addEventListener("click",toggleTheme);$("#bFull").addEventListener("click",toggleFull);
+addEventListener("keydown",e=>{if(e.target.matches("input"))return;const k=e.key;
+  if(["ArrowRight","PageDown"," "].includes(k)){e.preventDefault();go(cur+1);}else if(["ArrowLeft","PageUp"].includes(k)){e.preventDefault();go(cur-1);}
+  else if(k==="Home")go(0);else if(k==="End")go(slides.length-1);else if(k==="n"||k==="N")toggleNotes();else if(k==="t"||k==="T")toggleTheme();else if(k==="f"||k==="F")toggleFull();});
+let sx=null;stage.addEventListener("touchstart",e=>{sx=e.touches[0].clientX;},{passive:true});
+stage.addEventListener("touchend",e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>60)go(cur+(dx<0?1:-1));sx=null;});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>go(cur,false));
+fit();
+const h=(location.hash||"").replace("#",""),idx=slides.findIndex(s=>s.id===h);
+slides[0].classList.add("on");go(idx>=0?idx:0,false);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>go(cur,false));
+})();
+</script>
+
+</body>
+</html>
